@@ -1,0 +1,225 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import xlrd
+import xlwt
+
+def IEM(path):#获取数据
+    table = xlrd.open_workbook(path).sheets()[0] # 获取第一个sheet表
+    row = table.nrows # 行数
+    col = table.ncols # 列数
+    datamatrix = np.zeros((row-1, col-1))
+    for i in range(col-1):  # 对列进行遍历
+        cols = np.matrix(table.col_values(i+1,1))  # 把list转换为矩阵进行矩阵操作
+
+        datamatrix[:, i] = cols  # 按列把数据存进矩阵中
+
+    return datamatrix
+
+def writeXLS(dicts,path):#写入排序
+
+    xls=xlwt.Workbook()
+    sheet=xls.add_sheet('mysheet')
+
+
+    key=list(dicts.keys())
+    value=list(dicts.values())
+    for i in range(0,2):
+        for j in range(len(dicts)):
+            if i==0:
+                sheet.write(i,j,value[j])
+            elif i==1:
+                sheet.write(i,j,key[j])
+    xls.save(path)
+
+def dicti(list1,list2):
+    lens=len(list1)
+    out={}
+    for i in range(lens):
+        out[list1[i]]=list2[i]
+
+    return out
+
+def draw(dicts):
+    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.bar(dicts.values(), dicts.keys(),facecolor='cornflowerblue')
+    plt.plot(dicts.values(), dicts.keys(),'r'+'x'+'-')
+    plt.title('各市综合评价')
+    plt.xlabel('城市')
+    plt.ylabel('评分')
+    plt.style.use('ggplot')
+    plt.tick_params(top='off', right='off')
+    plt.xticks(rotation=-25)  #旋转
+
+    plt.show()
+
+class AHP:
+    """
+    相关信息的传入和准备
+    """
+
+    def __init__(self, array):
+        ## 记录矩阵相关信息
+        self.array = array
+        ## 记录矩阵大小
+        self.n = array.shape[0]
+        # 初始化RI值，用于一致性检验
+        self.RI_list = [0, 0, 0.52, 0.89, 1.12, 1.26, 1.36, 1.41, 1.46, 1.49, 1.52, 1.54, 1.56, 1.58,
+                        1.59]
+        # 矩阵的特征值和特征向量
+        self.eig_val, self.eig_vector = np.linalg.eig(self.array)
+        # 矩阵的最大特征值
+        self.max_eig_val = np.max(self.eig_val)
+        # 矩阵最大特征值对应的特征向量
+        self.max_eig_vector = self.eig_vector[:, np.argmax(self.eig_val)].real
+        # 矩阵的一致性指标CI
+        if self.n>2:
+            self.CI_val = (self.max_eig_val - self.n) / (self.n - 1)
+        # 矩阵的一致性比例CR
+            self.CR_val = self.CI_val / (self.RI_list[self.n - 1])
+
+    """
+    一致性判断
+    """
+
+    def test_consist(self):
+        # 打印矩阵的一致性指标CI和一致性比例CR
+        print("判断矩阵的CI值为：" + str(self.CI_val))
+        print("判断矩阵的CR值为：" + str(self.CR_val))
+        # 进行一致性检验判断
+        if self.n == 2:  # 当只有两个子因素的情况
+            print("仅包含两个子因素，不存在一致性问题")
+        else:
+            if self.CR_val < 0.1:  # CR值小于0.1，可以通过一致性检验
+                print("判断矩阵的CR值为" + str(self.CR_val) + ",通过一致性检验")
+                return True
+            else:  # CR值大于0.1, 一致性检验不通过
+                print("判断矩阵的CR值为" + str(self.CR_val) + "未通过一致性检验")
+                return False
+
+
+    """
+    算术平均法求权重
+    """
+
+    def cal_weight_by_arithmetic_method(self):
+        # 求矩阵的每列的和
+        col_sum = np.sum(self.array, axis=0)
+        # 将判断矩阵按照列归一化
+        array_normed = self.array / col_sum
+        # 计算权重向量
+        array_weight = np.sum(array_normed, axis=1) / self.n
+        # 打印权重向量
+        print("算术平均法计算得到的权重向量为：\n", array_weight)
+        # 返回权重向量的值
+        return array_weight
+
+    """
+    几何平均法求权重
+    """
+
+    def cal_weight__by_geometric_method(self):
+        # 求矩阵的每列的积
+        col_product = np.product(self.array, axis=0)
+        # 将得到的积向量的每个分量进行开n次方
+        array_power = np.power(col_product, 1 / self.n)
+        # 将列向量归一化
+        array_weight = array_power / np.sum(array_power)
+        # 打印权重向量
+        print("几何平均法计算得到的权重向量为：\n", array_weight)
+        # 返回权重向量的值
+        return array_weight
+
+    """
+    特征值法求权重
+    """
+
+    def cal_weight__by_eigenvalue_method(self):
+        # 将矩阵最大特征值对应的特征向量进行归一化处理就得到了权重
+        array_weight = self.max_eig_vector / np.sum(self.max_eig_vector)
+        # 返回权重向量的值
+        return array_weight
+
+
+if __name__ == "__main__":
+    # 给出判断矩阵
+    data_file = r'AHP2.xls'
+    data_file2 = r'AHP.xls'
+    A=np.array([[1,1/4,1/2],[4,1,2],[2,1/2,1]])
+    B2=np.array([[1,1/5],[5,1]])
+    B1=np.array([[1,1/2,1/4,1/6,1/2,1/4],[2,1,1/2,1/3,1,1/2],[4,2,1,1/2,2,1],[6,3,2,1,3,1/2],[2,1,1/2,1/3,1,1/2],[4,2,1,2,2,1]])
+    B3=np.array([[1,1],[1,1]])
+
+    #AHP(A).test_consist()
+    #AHP(B1).test_consist()#一致性检验
+
+    A_weight = AHP(A).cal_weight__by_eigenvalue_method()
+    B1_weight = AHP(B1).cal_weight__by_eigenvalue_method()
+    B2_weight = AHP(B2).cal_weight__by_eigenvalue_method()
+    B3_weight = AHP(B3).cal_weight__by_eigenvalue_method()
+    # 算术平均法求权重
+        #weight1 = AHP(b).cal_weight_by_arithmetic_method()
+    # 几何平均法求权重
+        #weight2 = AHP(b).cal_weight__by_geometric_method()
+    # 特征值法求权重
+        #weight3 = AHP(b).cal_weight__by_eigenvalue_method()
+    ALL = [A_weight, B1_weight, B2_weight, B3_weight]
+    for x in ALL:
+        print(x)
+
+    A_weight = A_weight[:, np.newaxis]
+    B1_weight=B1_weight[:,np.newaxis]
+    B2_weight = B2_weight[:, np.newaxis]
+    B3_weight = B3_weight[:, np.newaxis]#转置便于计算
+
+    data=IEM(data_file)
+    x_max=np.max(data,axis=1)
+    #正相关1-4,6，负相关0,5,7-9
+    rou=[1,0,0,0,0,0,0,1,1,1]
+    for x_data in range(data.shape[0]):#数据消除量纲影响
+        for x_plc in range(data.shape[1]):
+            if rou[x_data]>0:
+                data[x_data][x_plc]=rou[x_data]-(data[x_data][x_plc]/x_max[x_data])
+            elif rou[x_data]==0:
+                data[x_data][x_plc]=data[x_data][x_plc]/x_max[x_data]
+
+    localename=['安庆市','池州市','铜陵市','芜湖市','马鞍山市','宣城市','黄山市','六安市','合肥市','滁州市','淮南市','淮北市','阜阳市','亳州市','蚌埠市','宿州市']
+    judges = []
+
+    for c in range(data.shape[1]):
+        cs=data[:,c]
+        B1c=[]#分割
+        B2c=[]
+        B3c=[]
+        Ac=[]
+
+        for lens in range(data.shape[0]):
+            if lens<=5:
+                B1c.append(cs[lens])
+
+            elif 5<lens<8:
+                B2c.append(cs[lens])
+
+            elif lens>7:
+                B3c.append(cs[lens])
+
+        B1c = np.array(B1c)
+        B2c = np.array(B2c)
+        B3c = np.array(B3c)
+        Xb1=np.matmul(B1c,B1_weight)
+        Xb2 = np.matmul(B2c, B2_weight)
+        Xb3 = np.matmul(B3c, B3_weight)#2级计算
+        Ac.extend([Xb1,Xb2,Xb3])
+        Ac = np.array(Ac)
+        Ac=Ac.squeeze()
+        judge = np.matmul(Ac,A_weight)#1级计算
+        judges.extend(list(judge))
+
+    lasta=dicti(judges,localename)
+    solasta=sorted(lasta)
+    solastadic={}
+    for i in range(len(solasta)):
+        solastadic[solasta[i]]=lasta[solasta[i]]#得到排序好的字典
+
+    writeXLS(solastadic,data_file2)#写入排序'''
+    draw(solastadic)
